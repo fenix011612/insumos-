@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+<meta charset="UTF-8">
+<title>Planilha Mensal de Insumos</title>
+<meta name="viewport" content="width=device-width, initial-scale=1">
+
+<style>
+:root{
+    --lilas:#6a5acd;
+    --ciano:#4fc3f7;
+    --bg:#f7f5ff;
+    --branco:#ffffff;
+}
+
+body{
+    margin:0;
+    padding:20px;
+    font-family:Poppins, Arial, sans-serif;
+    background:var(--bg);
+}
+
+h1, h2{
+    text-align:center;
+    color:var(--lilas);
+}
+
+.container{
+    max-width:1300px;
+    margin:auto;
+    background:var(--branco);
+    padding:20px;
+    border-radius:14px;
+    box-shadow:0 6px 20px rgba(0,0,0,0.1);
+}
+
+.filtros{
+    display:flex;
+    gap:10px;
+    margin-bottom:15px;
+    flex-wrap:wrap;
+}
+
+select{
+    padding:8px;
+    border-radius:8px;
+    border:1px solid #ccc;
+}
+
+table{
+    width:100%;
+    border-collapse:collapse;
+}
+
+th{
+    background:var(--lilas);
+    color:white;
+    padding:10px;
+    font-size:14px;
+}
+
+td{
+    padding:8px;
+    border-bottom:1px solid #ddd;
+}
+
+input, select{
+    width:100%;
+    padding:6px;
+    border-radius:6px;
+    border:1px solid #ccc;
+}
+
+.total{
+    background:#eef6ff;
+    font-weight:bold;
+}
+
+.btn{
+    margin-top:15px;
+    padding:10px 16px;
+    border:none;
+    border-radius:8px;
+    background:var(--ciano);
+    font-weight:600;
+    cursor:pointer;
+}
+
+.resumo{
+    margin-top:20px;
+    background:#f2f0ff;
+    padding:15px;
+    border-radius:10px;
+}
+
+.comparativo{
+    margin-top:20px;
+}
+</style>
+</head>
+<body>
+
+<h1>Planilha Mensal de Insumos</h1>
+
+<div class="container">
+
+<div class="filtros">
+    <select id="mes"></select>
+    <select id="ano"></select>
+</div>
+
+<table>
+<thead>
+<tr>
+<th>Insumo (editável)</th>
+<th>Custo</th>
+<th>Qtd</th>
+<th>Data</th>
+<th>Local</th>
+<th>Pagamento</th>
+<th>Total</th>
+</tr>
+</thead>
+<tbody id="tabela"></tbody>
+</table>
+
+<button class="btn" onclick="adicionarLinha()">+ Adicionar Insumo</button>
+
+<div class="resumo">
+<h2>Total do Mês: R$ <span id="totalMes">0,00</span></h2>
+</div>
+
+<div class="comparativo">
+<h2>Comparativo de Gastos por Mês</h2>
+<ul id="listaComparativo"></ul>
+</div>
+
+</div>
+
+<script>
+const tabela = document.getElementById('tabela');
+const mesSelect = document.getElementById('mes');
+const anoSelect = document.getElementById('ano');
+const totalMesEl = document.getElementById('totalMes');
+const listaComparativo = document.getElementById('listaComparativo');
+
+const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+let dados = JSON.parse(localStorage.getItem('insumos')) || {};
+
+function init(){
+    meses.forEach((m,i)=>{
+        mesSelect.innerHTML += `<option value="${i}">${m}</option>`;
+    });
+    const anoAtual = new Date().getFullYear();
+    for(let a=anoAtual-3;a<=anoAtual+3;a++){
+        anoSelect.innerHTML += `<option value="${a}">${a}</option>`;
+    }
+    carregarTabela();
+    atualizarComparativo();
+}
+
+function chave(){
+    return `${anoSelect.value}-${mesSelect.value}`;
+}
+
+function carregarTabela(){
+    tabela.innerHTML = '';
+    const linhas = dados[chave()] || [];
+    linhas.forEach(l=>tabela.appendChild(criarLinha(l)));
+    calcularTotalMes();
+}
+
+function criarLinha(dado={}){
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+    <td><input value="${dado.insumo||''}"></td>
+    <td><input type="number" step="0.01" value="${dado.custo||''}"></td>
+    <td><input type="number" value="${dado.qtd||''}"></td>
+    <td><input type="date" value="${dado.data||''}"></td>
+    <td><input value="${dado.local||''}"></td>
+    <td><input value="${dado.pagamento||''}"></td>
+    <td class="total">0,00</td>`;
+
+    tr.querySelectorAll('input').forEach(i=>{
+        i.oninput = salvar;
+    });
+
+    return tr;
+}
+
+function adicionarLinha(){
+    tabela.appendChild(criarLinha());
+}
+
+function salvar(){
+    const linhas = [];
+    tabela.querySelectorAll('tr').forEach(tr=>{
+        const inputs = tr.querySelectorAll('input');
+        const custo = parseFloat(inputs[1].value)||0;
+        const qtd = parseFloat(inputs[2].value)||0;
+        tr.querySelector('.total').innerText = (custo*qtd).toFixed(2);
+
+        linhas.push({
+            insumo: inputs[0].value,
+            custo, qtd,
+            data: inputs[3].value,
+            local: inputs[4].value,
+            pagamento: inputs[5].value
+        });
+    });
+    dados[chave()] = linhas;
+    localStorage.setItem('insumos', JSON.stringify(dados));
+    calcularTotalMes();
+    atualizarComparativo();
+}
+
+function calcularTotalMes(){
+    let total = 0;
+    tabela.querySelectorAll('.total').forEach(td=>{
+        total += parseFloat(td.innerText)||0;
+    });
+    totalMesEl.innerText = total.toFixed(2);
+}
+
+function atualizarComparativo(){
+    listaComparativo.innerHTML = '';
+    const ranking = Object.keys(dados).map(k=>{
+        const soma = dados[k].reduce((t,l)=>t+(l.custo*l.qtd||0),0);
+        return {mes:k,total:soma};
+    }).sort((a,b)=>b.total-a.total);
+
+    ranking.forEach(r=>{
+        const li = document.createElement('li');
+        li.innerText = `${r.mes} → R$ ${r.total.toFixed(2)}`;
+        listaComparativo.appendChild(li);
+    });
+}
+
+mesSelect.onchange = carregarTabela;
+anoSelect.onchange = carregarTabela;
+
+init();
+</script>
+
+</body>
+</html>
