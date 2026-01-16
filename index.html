@@ -117,6 +117,7 @@ input, select{
 </div><div class="comparativo">
 <h2>Comparativo de Gastos por Mês</h2>
 <ul id="listaComparativo"></ul>
+<button class="btn" onclick="apagarHistorico()">🗑️ Apagar Histórico</button>
 </div></div><script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-app.js";
 import { getFirestore, doc, setDoc, getDoc, getDocs, collection } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
@@ -149,23 +150,27 @@ function init(){
     op.value=i; op.textContent=m; mesSelect.appendChild(op);
   });
   const anoAtual=new Date().getFullYear();
-  for(let a=anoAtual-3;a<=anoAtual+3;a++){
+  for(let a=2026;a<=anoAtual+5;a++){
     const op=document.createElement('option');
     op.value=a; op.textContent=a; anoSelect.appendChild(op);
-  }
+}
   carregarTabela();
 }
 
 function chave(){ return `${anoSelect.value}-${mesSelect.value}`; }
 
-async function carregarTabela(){
+async async function carregarTabela(){
   tabela.innerHTML='';
-  const ref=doc(db,'insumos',chave());
-  const snap=await getDoc(ref);
-  const linhas=snap.exists()?snap.data().linhas:[];
-  linhas.forEach(l=>tabela.appendChild(criarLinha(l)));
+  const ref = doc(db,'insumos',chave());
+  const snap = await getDoc(ref);
+  const linhas = snap.exists() ? snap.data().linhas : [];
+
+  if(linhas.length === 0){
+    tabela.appendChild(criarLinha());
+  } else {
+    linhas.forEach(l => tabela.appendChild(criarLinha(l)));
+  }
   calcularTotalMes();
-  atualizarComparativo();
 }
 
 function criarLinha(d={}){
@@ -194,20 +199,38 @@ function criarLinha(d={}){
 function adicionarLinha(){ tabela.appendChild(criarLinha()); }
 window.adicionarLinha = adicionarLinha;
 
+let salvando = false;
 async function salvar(){
-  const linhas=[];
-  tabela.querySelectorAll('tr').forEach(tr=>{
-    const i=tr.querySelectorAll('input');
-    const custo=parseFloat(i[1].value)||0;
-    const qtd=parseFloat(i[2].value)||0;
-    tr.querySelector('.total').textContent=(custo*qtd).toFixed(2);
+  if(salvando) return;
+  salvando = true;
+
+  const linhas = [];
+  let totalMes = 0;
+
+  tabela.querySelectorAll('tr').forEach(tr => {
+    const i = tr.querySelectorAll('input');
+    const custo = parseFloat(i[1].value) || 0;
+    const qtd = parseFloat(i[2].value) || 0;
+    const totalLinha = custo * qtd;
+
+    tr.querySelector('.total').textContent = totalLinha.toFixed(2);
+    totalMes += totalLinha;
+
     linhas.push({
-      insumo:i[0].value,
-      custo,qtd,
-      data:i[3].value,
-      local:i[4].value,
-      pagamento:i[5].value
+      insumo: i[0].value,
+      custo,
+      qtd,
+      data: i[3].value,
+      local: i[4].value,
+      pagamento: i[5].value
     });
+  });
+
+  totalMesEl.textContent = totalMes.toFixed(2);
+
+  await setDoc(doc(db,'insumos',chave()), { linhas });
+  salvando = false;
+});
   });
   await setDoc(doc(db,'insumos',chave()),{linhas});
   calcularTotalMes();
@@ -221,11 +244,33 @@ function calcularTotalMes(){
 
 async function atualizarComparativo(){
   listaComparativo.innerHTML='';
-  const snap=await getDocs(collection(db,'insumos'));
-  const ranking=[];
+  const snap = await getDocs(collection(db,'insumos'));
+  const ranking = [];
+
   snap.forEach(docu=>{
-    const soma=docu.data().linhas.reduce((s,l)=>s+(l.custo*l.qtd||0),0);
+    const soma = docu.data().linhas.reduce((s,l)=>s+(l.custo*l.qtd||0),0);
     ranking.push({mes:docu.id,total:soma});
+  });
+
+  ranking.sort((a,b)=>b.total-a.total);
+  ranking.forEach(r=>{
+    const li=document.createElement('li');
+    li.textContent = `${r.mes} → R$ ${r.total.toFixed(2)}`;
+    listaComparativo.appendChild(li);
+  });
+}
+
+async function apagarHistorico(){
+  if(!confirm('Tem certeza que deseja apagar TODO o histórico?')) return;
+  const snap = await getDocs(collection(db,'insumos'));
+  snap.forEach(async d=>{
+    await setDoc(doc(db,'insumos',d.id), { linhas: [] });
+  });
+  tabela.innerHTML='';
+  tabela.appendChild(criarLinha());
+  totalMesEl.textContent='0.00';
+  atualizarComparativo();
+});
   });
   ranking.sort((a,b)=>b.total-a.total);
   ranking.forEach(r=>{
@@ -239,6 +284,8 @@ mesSelect.addEventListener('change',carregarTabela);
 anoSelect.addEventListener('change',carregarTabela);
 
 init();
+
+window.apagarHistorico = apagarHistorico;
 });
 </script></body>
 </html>
