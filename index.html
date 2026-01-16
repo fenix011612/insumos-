@@ -97,7 +97,10 @@ input, select{
     margin-top:20px;
 }
 </style></head>
-<body><h1>Planilha Mensal de Insumos</h1><div class="container"><table>
+<body><h1>Planilha Mensal de Insumos</h1><div class="filtros">
+  <select id="mes"></select>
+  <select id="ano"></select>
+</div><table>
 <thead>
 <tr>
 <th>Insumo (editável)</th>
@@ -145,6 +148,22 @@ const listaComparativo = document.getElementById('listaComparativo');
 const meses = ['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
 function init(){
+  meses.forEach((m,i)=>{
+    const op=document.createElement('option');
+    op.value=i; op.textContent=m; mesSelect.appendChild(op);
+  });
+
+  const anoAtual = new Date().getFullYear();
+  for(let a=2026;a<=anoAtual+5;a++){
+    const op=document.createElement('option');
+    op.value=a; op.textContent=a; anoSelect.appendChild(op);
+  }
+
+  mesSelect.value = new Date().getMonth();
+  anoSelect.value = anoAtual;
+
+  carregarTabela();
+}{
   meses.forEach((m,i)=>{
     const op=document.createElement('option');
     op.value=i; op.textContent=m; mesSelect.appendChild(op);
