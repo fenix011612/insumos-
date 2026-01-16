@@ -167,7 +167,13 @@ async async function carregarTabela(){
 
   if(linhas.length === 0){
     tabela.appendChild(criarLinha());
-  } else {
+    totalMesEl.textContent = '0.00';
+    return;
+  }
+
+  linhas.forEach(l => tabela.appendChild(criarLinha(l)));
+  calcularTotalMes();
+} else {
     linhas.forEach(l => tabela.appendChild(criarLinha(l)));
   }
   calcularTotalMes();
@@ -200,35 +206,40 @@ function adicionarLinha(){ tabela.appendChild(criarLinha()); }
 window.adicionarLinha = adicionarLinha;
 
 let salvando = false;
+let timeoutSalvar;
 async function salvar(){
-  if(salvando) return;
-  salvando = true;
+  clearTimeout(timeoutSalvar);
+  timeoutSalvar = setTimeout(async ()=>{
+    if(salvando) return;
+    salvando = true;
 
-  const linhas = [];
-  let totalMes = 0;
+    const linhas=[];
+    let totalMes = 0;
 
-  tabela.querySelectorAll('tr').forEach(tr => {
-    const i = tr.querySelectorAll('input');
-    const custo = parseFloat(i[1].value) || 0;
-    const qtd = parseFloat(i[2].value) || 0;
-    const totalLinha = custo * qtd;
+    tabela.querySelectorAll('tr').forEach(tr=>{
+      const i = tr.querySelectorAll('input');
+      const custo = parseFloat(i[1].value) || 0;
+      const qtd = parseFloat(i[2].value) || 0;
+      const totalLinha = custo * qtd;
 
-    tr.querySelector('.total').textContent = totalLinha.toFixed(2);
-    totalMes += totalLinha;
+      tr.querySelector('.total').textContent = totalLinha.toFixed(2);
+      totalMes += totalLinha;
 
-    linhas.push({
-      insumo: i[0].value,
-      custo,
-      qtd,
-      data: i[3].value,
-      local: i[4].value,
-      pagamento: i[5].value
+      linhas.push({
+        insumo: i[0].value,
+        custo,
+        qtd,
+        data: i[3].value,
+        local: i[4].value,
+        pagamento: i[5].value
+      });
     });
-  });
 
-  totalMesEl.textContent = totalMes.toFixed(2);
-
-  await setDoc(doc(db,'insumos',chave()), { linhas });
+    totalMesEl.textContent = totalMes.toFixed(2);
+    await setDoc(doc(db,'insumos',chave()), { linhas });
+    salvando = false;
+  }, 300);
+}(doc(db,'insumos',chave()), { linhas });
   salvando = false;
 });
   });
@@ -262,9 +273,17 @@ async function atualizarComparativo(){
 
 async function apagarHistorico(){
   if(!confirm('Tem certeza que deseja apagar TODO o histórico?')) return;
+
   const snap = await getDocs(collection(db,'insumos'));
-  snap.forEach(async d=>{
-    await setDoc(doc(db,'insumos',d.id), { linhas: [] });
+  for (const d of snap.docs) {
+    await deleteDoc(doc(db,'insumos', d.id));
+  }
+
+  tabela.innerHTML='';
+  tabela.appendChild(criarLinha());
+  totalMesEl.textContent='0.00';
+  listaComparativo.innerHTML='';
+});
   });
   tabela.innerHTML='';
   tabela.appendChild(criarLinha());
@@ -289,3 +308,4 @@ window.apagarHistorico = apagarHistorico;
 });
 </script></body>
 </html>
+
