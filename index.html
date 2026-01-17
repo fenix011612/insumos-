@@ -2,13 +2,14 @@
 <head>
 <meta charset="UTF-8" />
 <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-<title>Planilha Mensal de Insumos</title><!-- Firebase --><script type="module">
+<title>Planilha Mensal de Insumos</title><!-- Firebase Realtime Database --><script type="module">
   import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-  import { getFirestore, collection, addDoc, getDocs, deleteDoc, doc } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
+  import { getDatabase, ref, set, push, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
   const firebaseConfig = {
     apiKey: "AIzaSyByv8SN7FXTKG9kc2jJCeYGMa86R0ZVf9g",
     authDomain: "insumos-41ece.firebaseapp.com",
+    databaseURL: "https://insumos-41ece-default-rtdb.firebaseio.com",
     projectId: "insumos-41ece",
     storageBucket: "insumos-41ece.firebasestorage.app",
     messagingSenderId: "25863524219",
@@ -16,14 +17,14 @@
   };
 
   const app = initializeApp(firebaseConfig);
-  const db = getFirestore(app);
+  const db = getDatabase(app);
 
   window.db = db;
-  window.addDoc = addDoc;
-  window.getDocs = getDocs;
-  window.collection = collection;
-  window.deleteDoc = deleteDoc;
-  window.doc = doc;
+  window.dbRef = ref;
+  window.dbSet = set;
+  window.dbPush = push;
+  window.dbOnValue = onValue;
+  window.dbRemove = remove;
 </script><style>
 :root{
   --lilas:#6a5acd;
@@ -151,11 +152,11 @@ function adicionarLinha(){
   const tr=document.createElement('tr');
   tr.innerHTML=`
     <td><input></td>
-    <td><input type="number" step="0.01" oninput="calcular()"></td>
-    <td><input type="number" oninput="calcular()"></td>
-    <td><input type="date"></td>
-    <td><input></td>
-    <td><input></td>
+    <td><input type="number" step="0.01" oninput="salvarRealtime();calcular()"></td>
+    <td><input type="number" oninput="salvarRealtime();calcular()"></td>
+    <td><input type="date" onchange="salvarRealtime()"></td>
+    <td><input oninput="salvarRealtime()"></td>
+    <td><input oninput="salvarRealtime()"></td>
     <td class="linhaTotal">0,00</td>`;
   tabela.appendChild(tr);
 }
@@ -174,9 +175,57 @@ function calcular(){
 
 function apagarHistorico(){
   if(confirm('Apagar todo o histórico?')){
+    const path = `insumos/${anoSelect.value}/${mesSelect.value}`;
+    dbRemove(dbRef(db, path));
     tabela.innerHTML='';
     totalMesEl.textContent='Total do Mês: R$ 0,00';
   }
 }
+}
+function salvarRealtime(){
+  const path = `insumos/${anoSelect.value}/${mesSelect.value}`;
+  const dados=[];
+
+  document.querySelectorAll('#tabela tr').forEach(tr=>{
+    const inputs = tr.querySelectorAll('input');
+    dados.push({
+      insumo: inputs[0].value,
+      custo: inputs[1].value,
+      qtd: inputs[2].value,
+      data: inputs[3].value,
+      local: inputs[4].value,
+      pagamento: inputs[5].value
+    });
+  });
+
+  dbSet(dbRef(db, path), dados);
+}
+
+function carregarRealtime(){
+  const path = `insumos/${anoSelect.value}/${mesSelect.value}`;
+  dbOnValue(dbRef(db, path), snap=>{
+    tabela.innerHTML='';
+    if(snap.exists()){
+      snap.val().forEach(item=>{
+        const tr=document.createElement('tr');
+        tr.innerHTML=`
+          <td><input value="${item.insumo||''}"></td>
+          <td><input type="number" step="0.01" value="${item.custo||''}" oninput="salvarRealtime();calcular()"></td>
+          <td><input type="number" value="${item.qtd||''}" oninput="salvarRealtime();calcular()"></td>
+          <td><input type="date" value="${item.data||''}" onchange="salvarRealtime()"></td>
+          <td><input value="${item.local||''}" oninput="salvarRealtime()"></td>
+          <td><input value="${item.pagamento||''}" oninput="salvarRealtime()"></td>
+          <td class="linhaTotal">0,00</td>`;
+        tabela.appendChild(tr);
+      });
+      calcular();
+    }
+  });
+}
+
+mesSelect.onchange = carregarRealtime;
+anoSelect.onchange = carregarRealtime;
+carregarRealtime();
 </script></body>
 </html>
+        
