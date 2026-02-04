@@ -3,19 +3,18 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>Controle Mensal de Insumos</title>
+<title>Planilha Mensal de Insumos</title>
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, push, update, onValue, remove } 
-from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyByv8SN7FXTKG9kc2jJCeYGMa86R0ZVf9g",
   authDomain: "insumos-41ece.firebaseapp.com",
   databaseURL: "https://insumos-41ece-default-rtdb.firebaseio.com",
   projectId: "insumos-41ece",
-  storageBucket: "insumos-41ece.appspot.com",
+  storageBucket: "insumos-41ece.firebasestorage.app",
   messagingSenderId: "25863524219",
   appId: "1:25863524219:web:59fff88398f535f84437de"
 };
@@ -24,137 +23,195 @@ const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
 window.db = db;
-window.ref = ref;
-window.push = push;
-window.update = update;
-window.onValue = onValue;
-window.remove = remove;
+window.dbRef = ref;
+window.dbSet = set;
+window.dbOnValue = onValue;
 </script>
 
 <style>
+:root{
+  --lilas:#6a5acd;
+  --ciano:#4fc3f7;
+  --bg:#f7f5ff;
+}
 body{
-  font-family:Poppins,Arial;
-  background:#f5f7ff;
+  font-family:Poppins, Arial, sans-serif;
+  background:var(--bg);
+  margin:0;
   padding:30px;
 }
-h1{text-align:center;color:#5a4fcf;}
+h1{color:var(--lilas);text-align:center;}
+.container{
+  background:#fff;
+  padding:20px;
+  border-radius:14px;
+  box-shadow:0 8px 20px rgba(0,0,0,.08);
+}
+.filtros{display:flex;gap:10px;margin-bottom:15px;}
+input,select{
+  padding:8px;
+  border-radius:6px;
+  border:1px solid #ccc;
+  width:100%;
+}
 table{width:100%;border-collapse:collapse;}
+thead{background:var(--lilas);color:#fff;}
 th,td{padding:8px;text-align:center;}
-thead{background:#5a4fcf;color:#fff;}
-tbody tr:nth-child(even){background:#eef;}
-input{width:100%;padding:5px;}
+tbody tr:nth-child(even){background:#f2f2f2;}
 button{
-  padding:8px 12px;
+  background:var(--ciano);
   border:none;
+  padding:6px 10px;
   border-radius:6px;
   cursor:pointer;
 }
-.add{background:#4fc3f7;}
-.del{background:#ff6b6b;color:#fff;}
 .total{
   margin-top:20px;
   font-size:20px;
-  text-align:center;
   font-weight:600;
+  color:var(--lilas);
+  text-align:center;
+}
+.excluir{
+  background:#ff5c5c;
+  color:#fff;
 }
 </style>
 </head>
 
 <body>
+<h1>Planilha Mensal de Insumos</h1>
 
-<h1>Controle Mensal de Insumos</h1>
+<div class="container">
+  <div class="filtros">
+    <select id="mes"></select>
+    <select id="ano"></select>
+  </div>
 
-<table>
-<thead>
-<tr>
-  <th>Insumo</th>
-  <th>Custo</th>
-  <th>Qtd</th>
-  <th>Data</th>
-  <th>Local</th>
-  <th>Pagamento</th>
-  <th>Total</th>
-  <th>Ação</th>
-</tr>
-</thead>
-<tbody id="lista"></tbody>
-</table>
+  <table>
+    <thead>
+      <tr>
+        <th>Insumo</th>
+        <th>Custo</th>
+        <th>Qtd</th>
+        <th>Data</th>
+        <th>Local</th>
+        <th>Pagamento</th>
+        <th>Total</th>
+        <th>Ação</th>
+      </tr>
+    </thead>
+    <tbody id="tabela"></tbody>
+  </table>
 
-<br>
-<button class="add" onclick="novo()">+ Adicionar Insumo</button>
+  <button onclick="adicionarLinha()">+ Adicionar Insumo</button>
 
-<div class="total" id="totalMes">Total do mês: R$ 0,00</div>
+  <div class="total" id="totalMes">Total do Mês: R$ 0,00</div>
+</div>
 
 <script>
-const lista = document.getElementById("lista");
-const totalMes = document.getElementById("totalMes");
+const meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const mesSelect = document.getElementById("mes");
+const anoSelect = document.getElementById("ano");
+const tabela = document.getElementById("tabela");
+const totalMesEl = document.getElementById("totalMes");
 
-// 🔒 caminho fixo para evitar bug de reload
-const caminho = "insumos/2026/0";
-
-function novo(){
-  const novoRef = push(ref(db, caminho));
-  update(novoRef,{
-    insumo:"",
-    custo:0,
-    quantidade:0,
-    data:"",
-    local:"",
-    pagamento:""
-  });
-}
-
-function apagar(id){
-  if(confirm("Deseja apagar este insumo?")){
-    remove(ref(db, `${caminho}/${id}`));
-  }
-}
-
-function salvar(id,campo,valor){
-  update(ref(db, `${caminho}/${id}`), {
-    [campo]: valor
-  });
-}
-
-onValue(ref(db,caminho), snap=>{
-  lista.innerHTML="";
-  let soma = 0;
-
-  snap.forEach(child=>{
-    const id = child.key;
-    const d = child.val();
-    const total = (d.custo||0)*(d.quantidade||0);
-    soma += total;
-
-    lista.innerHTML += `
-      <tr>
-        <td><input value="${d.insumo||''}"
-          oninput="salvar('${id}','insumo',this.value)"></td>
-
-        <td><input type="number" value="${d.custo||0}"
-          oninput="salvar('${id}','custo',Number(this.value))"></td>
-
-        <td><input type="number" value="${d.quantidade||0}"
-          oninput="salvar('${id}','quantidade',Number(this.value))"></td>
-
-        <td><input type="date" value="${d.data||''}"
-          oninput="salvar('${id}','data',this.value)"></td>
-
-        <td><input value="${d.local||''}"
-          oninput="salvar('${id}','local',this.value)"></td>
-
-        <td><input value="${d.pagamento||''}"
-          oninput="salvar('${id}','pagamento',this.value)"></td>
-
-        <td>R$ ${total.toFixed(2)}</td>
-        <td><button class="del" onclick="apagar('${id}')">🗑</button></td>
-      </tr>
-    `;
-  });
-
-  totalMes.textContent = `Total do mês: R$ ${soma.toFixed(2)}`;
+meses.forEach((m,i)=>{
+  const op=document.createElement("option");
+  op.value=i;
+  op.textContent=m;
+  mesSelect.appendChild(op);
 });
-</script>
 
+for(let a=2024;a<=2035;a++){
+  const op=document.createElement("option");
+  op.value=a;
+  op.textContent=a;
+  anoSelect.appendChild(op);
+}
+
+mesSelect.value=new Date().getMonth();
+anoSelect.value=new Date().getFullYear();
+
+function caminhoAtual(){
+  return `insumos/${anoSelect.value}/${mesSelect.value}`;
+}
+
+function adicionarLinha(){
+  criarLinha({});
+  salvar();
+}
+
+function criarLinha(item){
+  const tr=document.createElement("tr");
+
+  tr.innerHTML=`
+    <td><input value="${item.insumo||""}"></td>
+    <td><input type="number" step="0.01" value="${item.custo||""}"></td>
+    <td><input type="number" value="${item.quantidade||""}"></td>
+    <td><input type="date" value="${item.data||""}"></td>
+    <td><input value="${item.local||""}"></td>
+    <td><input value="${item.pagamento||""}"></td>
+    <td class="linhaTotal">0,00</td>
+    <td><button class="excluir">🗑</button></td>
+  `;
+
+  tr.querySelectorAll("input").forEach(i=>{
+    i.oninput=()=>{ calcular(); salvar(); };
+  });
+
+  tr.querySelector(".excluir").onclick=()=>{
+    if(confirm("Excluir este insumo?")){
+      tr.remove();
+      calcular();
+      salvar();
+    }
+  };
+
+  tabela.appendChild(tr);
+}
+
+function calcular(){
+  let soma=0;
+  tabela.querySelectorAll("tr").forEach(tr=>{
+    const custo=Number(tr.children[1].querySelector("input").value)||0;
+    const qtd=Number(tr.children[2].querySelector("input").value)||0;
+    const total=custo*qtd;
+    tr.querySelector(".linhaTotal").textContent=total.toFixed(2);
+    soma+=total;
+  });
+  totalMesEl.textContent=`Total do Mês: R$ ${soma.toFixed(2)}`;
+}
+
+function salvar(){
+  const dados=[];
+  tabela.querySelectorAll("tr").forEach(tr=>{
+    const i=tr.querySelectorAll("input");
+    dados.push({
+      insumo:i[0].value,
+      custo:i[1].value,
+      quantidade:i[2].value,
+      data:i[3].value,
+      local:i[4].value,
+      pagamento:i[5].value
+    });
+  });
+  dbSet(dbRef(db,caminhoAtual()),dados);
+}
+
+function carregar(){
+  dbOnValue(dbRef(db,caminhoAtual()),snap=>{
+    tabela.innerHTML="";
+    if(!snap.exists()) return;
+    snap.val().forEach(item=>criarLinha(item));
+    calcular();
+  });
+}
+
+mesSelect.onchange=carregar;
+anoSelect.onchange=carregar;
+
+carregar();
+</script>
 </body>
 </html>
