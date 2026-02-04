@@ -5,29 +5,6 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planilha Mensal de Insumos</title>
 
-<script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
-
-const firebaseConfig = {
-  apiKey: "AIzaSyByv8SN7FXTKG9kc2jJCeYGMa86R0ZVf9g",
-  authDomain: "insumos-41ece.firebaseapp.com",
-  databaseURL: "https://insumos-41ece-default-rtdb.firebaseio.com",
-  projectId: "insumos-41ece",
-  storageBucket: "insumos-41ece.firebasestorage.app",
-  messagingSenderId: "25863524219",
-  appId: "1:25863524219:web:59fff88398f535f84437de"
-};
-
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
-
-window.db = db;
-window.dbRef = ref;
-window.dbSet = set;
-window.dbGet = get;
-</script>
-
 <style>
 :root{
   --lilas:#6a5acd;
@@ -104,18 +81,38 @@ button{
     <tbody id="tabela"></tbody>
   </table>
 
-  <button onclick="adicionarLinha()">+ Adicionar Insumo</button>
+  <button id="add">+ Adicionar Insumo</button>
 
   <div class="total" id="totalMes">Total do Mês: R$ 0,00</div>
 </div>
 
-<script>
+<script type="module">
+import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+
+/* 🔥 Firebase */
+const firebaseConfig = {
+  apiKey: "AIzaSyByv8SN7FXTKG9kc2jJCeYGMa86R0ZVf9g",
+  authDomain: "insumos-41ece.firebaseapp.com",
+  databaseURL: "https://insumos-41ece-default-rtdb.firebaseio.com",
+  projectId: "insumos-41ece",
+  storageBucket: "insumos-41ece.firebasestorage.app",
+  messagingSenderId: "25863524219",
+  appId: "1:25863524219:web:59fff88398f535f84437de"
+};
+
+const app = initializeApp(firebaseConfig);
+const db = getDatabase(app);
+
+/* 🔧 Elementos */
 const meses=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
 const mesSelect=document.getElementById("mes");
 const anoSelect=document.getElementById("ano");
 const tabela=document.getElementById("tabela");
 const totalMesEl=document.getElementById("totalMes");
+const btnAdd=document.getElementById("add");
 
+/* 🔁 Selects */
 meses.forEach((m,i)=>{
   const op=document.createElement("option");
   op.value=i;
@@ -137,6 +134,7 @@ function caminhoAtual(){
   return `insumos/${anoSelect.value}/${mesSelect.value}`;
 }
 
+/* 🧩 Linha */
 function criarLinha(item={}){
   const tr=document.createElement("tr");
 
@@ -152,7 +150,10 @@ function criarLinha(item={}){
   `;
 
   tr.querySelectorAll("input").forEach(inp=>{
-    inp.oninput=()=>{ calcular(); salvar(); };
+    inp.addEventListener("input",()=>{
+      calcular();
+      salvar();
+    });
   });
 
   tr.querySelector(".excluir").onclick=()=>{
@@ -166,11 +167,13 @@ function criarLinha(item={}){
   tabela.appendChild(tr);
 }
 
-function adicionarLinha(){
+/* ➕ */
+btnAdd.onclick=()=>{
   criarLinha();
   salvar();
-}
+};
 
+/* 🧮 */
 function calcular(){
   let soma=0;
   tabela.querySelectorAll("tr").forEach(tr=>{
@@ -183,6 +186,7 @@ function calcular(){
   totalMesEl.textContent=`Total do Mês: R$ ${soma.toFixed(2)}`;
 }
 
+/* 💾 */
 function salvar(){
   const dados=[];
   tabela.querySelectorAll("tr").forEach(tr=>{
@@ -196,12 +200,13 @@ function salvar(){
       pagamento:i[5].value
     });
   });
-  dbSet(dbRef(db,caminhoAtual()),dados);
+  set(ref(db,caminhoAtual()),dados);
 }
 
+/* 📥 */
 async function carregar(){
   tabela.innerHTML="";
-  const snap=await dbGet(dbRef(db,caminhoAtual()));
+  const snap=await get(ref(db,caminhoAtual()));
   if(!snap.exists()) return;
   snap.val().forEach(item=>criarLinha(item));
   calcular();
@@ -210,6 +215,7 @@ async function carregar(){
 mesSelect.onchange=carregar;
 anoSelect.onchange=carregar;
 
+/* 🚀 */
 carregar();
 </script>
 </body>
