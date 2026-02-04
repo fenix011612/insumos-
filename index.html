@@ -10,7 +10,7 @@
   import {
     getFirestore, collection, doc,
     addDoc, getDocs, deleteDoc,
-    serverTimestamp, query
+    setDoc, serverTimestamp
   } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-firestore.js";
 
   const firebaseConfig = {
@@ -26,7 +26,7 @@
   const db = getFirestore(app);
 
   window.db = db;
-  window.fs = { collection, doc, addDoc, getDocs, deleteDoc, serverTimestamp, query };
+  window.fs = { collection, doc, addDoc, getDocs, deleteDoc, setDoc, serverTimestamp };
 </script>
 
 <style>
@@ -44,6 +44,7 @@ th,td{padding:8px;text-align:center;}
 tbody tr:nth-child(even){background:#f2f2f2;}
 button{background:var(--ciano);border:none;padding:10px 14px;border-radius:8px;cursor:pointer;margin-top:10px;}
 .total{margin-top:20px;font-size:20px;font-weight:600;color:var(--lilas);text-align:center;}
+.resumo{margin-top:20px;background:#f1efff;padding:15px;border-radius:10px;}
 </style>
 </head>
 
@@ -73,6 +74,7 @@ button{background:var(--ciano);border:none;padding:10px 14px;border-radius:8px;c
   <button id="apagar">🗑 Apagar Mês</button>
 
   <div class="total" id="totalMes">Total do Mês: R$ 0,00</div>
+  <div class="resumo" id="resumo"></div>
 </div>
 
 <script type="module">
@@ -81,6 +83,7 @@ const mes=document.getElementById('mes');
 const ano=document.getElementById('ano');
 const tabela=document.getElementById('tabela');
 const totalMes=document.getElementById('totalMes');
+const resumoDiv=document.getElementById('resumo');
 
 meses.forEach((m,i)=>mes.innerHTML+=`<option value="${i}">${m}</option>`);
 for(let a=2026;a<=2035;a++) ano.innerHTML+=`<option>${a}</option>`;
@@ -89,42 +92,19 @@ mes.value=new Date().getMonth();
 ano.value=new Date().getFullYear();
 
 function refMes(){
-  return window.fs.collection(
-    window.db,
-    "insumos",
-    ano.value,
-    mes.value
-  );
+  return window.fs.collection(window.db,"insumos",ano.value,mes.value);
 }
 
 function calcular(){
   let soma=0;
   tabela.querySelectorAll('tr').forEach(tr=>{
-    const c=Number(tr.children[1].querySelector('input').value)||0;
-    const q=Number(tr.children[2].querySelector('input').value)||0;
-    const t=c*q;
-    tr.querySelector('.linhaTotal').textContent=t.toFixed(2);
-    soma+=t;
+    soma+=Number(tr.querySelector('.linhaTotal').textContent)||0;
   });
   totalMes.textContent=`Total do Mês: R$ ${soma.toFixed(2)}`;
 }
 
-async function carregar(){
-  tabela.innerHTML='';
-  const q=window.fs.query(refMes());
-  const snap=await window.fs.getDocs(q);
-
-  snap.forEach(docSnap=>{
-    const d=docSnap.data();
-    criarLinha(d, docSnap.id);
-  });
-
-  calcular();
-}
-
-function criarLinha(d={},id=null){
+function criarLinha(d={}){
   const tr=document.createElement('tr');
-  tr.dataset.id=id;
 
   tr.innerHTML=`
     <td><input value="${d.insumo||''}"></td>
@@ -133,29 +113,26 @@ function criarLinha(d={},id=null){
     <td><input type="date" value="${d.data||''}"></td>
     <td><input value="${d.local||''}"></td>
     <td><input value="${d.pagamento||''}"></td>
-    <td class="linhaTotal">0,00</td>
+    <td class="linhaTotal">0.00</td>
   `;
 
   tr.querySelectorAll('input').forEach(inp=>{
-    inp.addEventListener('change', async ()=>{
-      const dados={
+    inp.addEventListener('input', async ()=>{
+      const custo=Number(tr.children[1].querySelector('input').value)||0;
+      const qtd=Number(tr.children[2].querySelector('input').value)||0;
+      const total=custo*qtd;
+      tr.querySelector('.linhaTotal').textContent=total.toFixed(2);
+
+      await window.fs.addDoc(refMes(),{
         insumo:tr.children[0].querySelector('input').value,
-        custo:tr.children[1].querySelector('input').value,
-        quantidade:tr.children[2].querySelector('input').value,
+        custo,qtd,quantidade:qtd,total,
         data:tr.children[3].querySelector('input').value,
         local:tr.children[4].querySelector('input').value,
         pagamento:tr.children[5].querySelector('input').value,
-        criadoEm: window.fs.serverTimestamp()
-      };
+        criadoEm:window.fs.serverTimestamp()
+      });
 
-      if(tr.dataset.id){
-        await window.fs.deleteDoc(
-          window.fs.doc(refMes(), tr.dataset.id)
-        );
-      }
-
-      const novo=await window.fs.addDoc(refMes(), dados);
-      tr.dataset.id=novo.id;
+      await atualizarResumoMensal();
       calcular();
     });
   });
@@ -163,19 +140,71 @@ function criarLinha(d={},id=null){
   tabela.appendChild(tr);
 }
 
-document.getElementById('add').onclick=()=>criarLinha();
-
-document.getElementById('apagar').onclick=async ()=>{
-  if(!confirm('Apagar todos os dados deste mês?')) return;
+async function atualizarResumoMensal(){
   const snap=await window.fs.getDocs(refMes());
-  snap.forEach(d=>window.fs.deleteDoc(d.ref));
-  tabela.innerHTML='';
-  totalMes.textContent='Total do Mês: R$ 0,00';
-};
+  let totalGasto=0;
+  const mapa={};
 
-mes.onchange=carregar;
-ano.onchange=carregar;
-carregar();
+  snap.forEach(d=>{
+    const i=d.data();
+    totalGasto+=i.total||0;
+
+    if(!mapa[i.insumo]) mapa[i.insumo]={vezes:0,valor:0};
+    mapa[i.insumo].vezes++;
+    mapa[i.insumo].valor+=i.total||0;
+  });
+
+  const ranking=Object.entries(mapa).map(([k,v])=>({insumo:k,...v}))
+    .sort((a,b)=>b.vezes-a.vezes);
+
+  // mês anterior
+  let mesAnt=Number(mes.value)-1;
+  let anoAnt=Number(ano.value);
+  if(mesAnt<0){mesAnt=11;anoAnt--;}
+
+  let comparativo=null;
+  const refAnt=window.fs.doc(window.db,"resumoMensal",String(anoAnt),String(mesAnt));
+  const snapAnt=await window.fs.getDocs(
+    window.fs.collection(window.db,"resumoMensal",String(anoAnt))
+  );
+
+  snapAnt.forEach(s=>{
+    if(s.id==mesAnt){
+      const t=s.data().totalGasto||0;
+      const diff=totalGasto-t;
+      comparativo={
+        mesAnterior:meses[mesAnt],
+        totalAnterior:t,
+        diferenca:diff,
+        percentual:t?((diff/t)*100).toFixed(1)+'%':'100%'
+      };
+    }
+  });
+
+  await window.fs.setDoc(
+    window.fs.doc(window.db,"resumoMensal",String(ano.value),String(mes.value)),
+    {
+      totalGasto,
+      insumoMaisComprado:ranking[0]?.insumo||null,
+      rankingInsumos:ranking,
+      comparativoMesAnterior:comparativo,
+      atualizadoEm:window.fs.serverTimestamp()
+    }
+  );
+
+  resumoDiv.innerHTML=`
+    <b>Insumo mais comprado:</b> ${ranking[0]?.insumo||'-'}<br>
+    <b>Total gasto:</b> R$ ${totalGasto.toFixed(2)}<br>
+    ${comparativo?`<b>Comparativo com ${comparativo.mesAnterior}:</b>
+    ${comparativo.diferenca>=0?'+':''}${comparativo.diferenca.toFixed(2)} (${comparativo.percentual})`:""}
+  `;
+}
+
+document.getElementById('add').onclick=()=>criarLinha();
+document.getElementById('apagar').onclick=()=>{tabela.innerHTML='';};
+mes.onchange=()=>{tabela.innerHTML='';atualizarResumoMensal();};
+ano.onchange=()=>{tabela.innerHTML='';atualizarResumoMensal();};
 </script>
 </body>
 </html>
+
