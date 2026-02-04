@@ -7,7 +7,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, set, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const firebaseConfig = {
   apiKey: "AIzaSyByv8SN7FXTKG9kc2jJCeYGMa86R0ZVf9g",
@@ -25,7 +25,7 @@ const db = getDatabase(app);
 window.db = db;
 window.dbRef = ref;
 window.dbSet = set;
-window.dbOnValue = onValue;
+window.dbGet = get;
 </script>
 
 <style>
@@ -110,11 +110,11 @@ button{
 </div>
 
 <script>
-const meses = ["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
-const mesSelect = document.getElementById("mes");
-const anoSelect = document.getElementById("ano");
-const tabela = document.getElementById("tabela");
-const totalMesEl = document.getElementById("totalMes");
+const meses=["Janeiro","Fevereiro","Março","Abril","Maio","Junho","Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"];
+const mesSelect=document.getElementById("mes");
+const anoSelect=document.getElementById("ano");
+const tabela=document.getElementById("tabela");
+const totalMesEl=document.getElementById("totalMes");
 
 meses.forEach((m,i)=>{
   const op=document.createElement("option");
@@ -137,12 +137,7 @@ function caminhoAtual(){
   return `insumos/${anoSelect.value}/${mesSelect.value}`;
 }
 
-function adicionarLinha(){
-  criarLinha({});
-  salvar();
-}
-
-function criarLinha(item){
+function criarLinha(item={}){
   const tr=document.createElement("tr");
 
   tr.innerHTML=`
@@ -156,8 +151,8 @@ function criarLinha(item){
     <td><button class="excluir">🗑</button></td>
   `;
 
-  tr.querySelectorAll("input").forEach(i=>{
-    i.oninput=()=>{ calcular(); salvar(); };
+  tr.querySelectorAll("input").forEach(inp=>{
+    inp.oninput=()=>{ calcular(); salvar(); };
   });
 
   tr.querySelector(".excluir").onclick=()=>{
@@ -169,6 +164,11 @@ function criarLinha(item){
   };
 
   tabela.appendChild(tr);
+}
+
+function adicionarLinha(){
+  criarLinha();
+  salvar();
 }
 
 function calcular(){
@@ -199,13 +199,12 @@ function salvar(){
   dbSet(dbRef(db,caminhoAtual()),dados);
 }
 
-function carregar(){
-  dbOnValue(dbRef(db,caminhoAtual()),snap=>{
-    tabela.innerHTML="";
-    if(!snap.exists()) return;
-    snap.val().forEach(item=>criarLinha(item));
-    calcular();
-  });
+async function carregar(){
+  tabela.innerHTML="";
+  const snap=await dbGet(dbRef(db,caminhoAtual()));
+  if(!snap.exists()) return;
+  snap.val().forEach(item=>criarLinha(item));
+  calcular();
 }
 
 mesSelect.onchange=carregar;
