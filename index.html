@@ -2,197 +2,230 @@
 <html lang="pt-BR">
 <head>
 <meta charset="UTF-8">
-<title>Controle de Insumos</title>
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Planilha Mensal de Insumos</title>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-
-<style>
-body {
-  font-family: Arial, sans-serif;
-  background: #f4f6f8;
-  padding: 20px;
-}
-
-h2, h3 {
-  margin-top: 20px;
-}
-
-input, button, select {
-  padding: 8px;
-  margin: 5px 0;
-}
-
-button {
-  cursor: pointer;
-}
-
-table {
-  width: 100%;
-  border-collapse: collapse;
-  margin-top: 15px;
-}
-
-th, td {
-  border: 1px solid #ccc;
-  padding: 8px;
-  text-align: center;
-}
-
-.total {
-  font-size: 18px;
-  font-weight: bold;
-  margin-top: 15px;
-}
-</style>
-</head>
-
-<body>
-
-<h2>Controle de Insumos</h2>
-
-<label>Descrição:</label>
-<input id="descricao" placeholder="Ex: Faixa elástica">
-
-<label>Valor (R$):</label>
-<input id="valor" type="number" step="0.01">
-
-<button onclick="salvarInsumo()">Salvar</button>
-
-<div class="total">
-  Total do mês: R$ <span id="totalMes">0,00</span>
-</div>
-
-<table>
-  <thead>
-    <tr>
-      <th>Descrição</th>
-      <th>Valor (R$)</th>
-    </tr>
-  </thead>
-  <tbody id="lista"></tbody>
-</table>
-
-<h3>Comparativo de Gastos por Mês</h3>
-<canvas id="graficoMensal"></canvas>
-
-<!-- FIREBASE + SISTEMA -->
+<!-- Firebase -->
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, push, get } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+import { getDatabase, ref, set, onValue } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-/* 🔥 CONFIGURAÇÃO FIREBASE (a sua) */
 const firebaseConfig = {
-  apiKey: "SUA_API_KEY",
-  authDomain: "SEU_DOMINIO.firebaseapp.com",
-  databaseURL: "https://SEU_DB.firebaseio.com",
-  projectId: "SEU_PROJECT_ID",
-  storageBucket: "SEU_BUCKET.appspot.com",
-  messagingSenderId: "SEU_SENDER_ID",
-  appId: "SEU_APP_ID"
+  apiKey: "AIzaSyByv8SN7FXTKG9kc2jJCeYGMa86R0ZVf9g",
+  authDomain: "insumos-41ece.firebaseapp.com",
+  databaseURL: "https://insumos-41ece-default-rtdb.firebaseio.com",
+  projectId: "insumos-41ece",
+  storageBucket: "insumos-41ece.firebasestorage.app",
+  messagingSenderId: "25863524219",
+  appId: "1:25863524219:web:59fff88398f535f84437de"
 };
 
 const app = initializeApp(firebaseConfig);
 const db = getDatabase(app);
 
-const agora = new Date();
-const ano = agora.getFullYear();
-const mes = String(agora.getMonth() + 1).padStart(2, "0");
-
-const lista = document.getElementById("lista");
-const totalMesEl = document.getElementById("totalMes");
-
-/* 💾 SALVAR INSUMO */
-window.salvarInsumo = async function () {
-  const descricao = document.getElementById("descricao").value;
-  const valor = Number(document.getElementById("valor").value);
-
-  if (!descricao || !valor) return alert("Preencha tudo");
-
-  await push(ref(db, `insumos/${ano}/${mes}`), {
-    descricao,
-    valor,
-    data: new Date().toISOString()
-  });
-
-  document.getElementById("descricao").value = "";
-  document.getElementById("valor").value = "";
-
-  carregarMes();
-  carregarGrafico();
-};
-
-/* 📅 CARREGAR INSUMOS DO MÊS */
-async function carregarMes() {
-  lista.innerHTML = "";
-  let total = 0;
-
-  const snapshot = await get(ref(db, `insumos/${ano}/${mes}`));
-
-  if (snapshot.exists()) {
-    Object.values(snapshot.val()).forEach(item => {
-      total += Number(item.valor);
-
-      const tr = document.createElement("tr");
-      tr.innerHTML = `
-        <td>${item.descricao}</td>
-        <td>R$ ${item.valor.toFixed(2)}</td>
-      `;
-      lista.appendChild(tr);
-    });
-  }
-
-  totalMesEl.innerText = total.toFixed(2);
-}
-
-/* 📊 GRÁFICO COMPARATIVO MENSAL */
-let grafico;
-
-async function carregarGrafico() {
-  const meses = ["Jan","Fev","Mar","Abr","Mai","Jun","Jul","Ago","Set","Out","Nov","Dez"];
-  let valores = [];
-
-  for (let i = 1; i <= 12; i++) {
-    const m = String(i).padStart(2, "0");
-    const snap = await get(ref(db, `insumos/${ano}/${m}`));
-
-    let soma = 0;
-    if (snap.exists()) {
-      Object.values(snap.val()).forEach(item => {
-        soma += Number(item.valor);
-      });
-    }
-
-    valores.push(soma);
-  }
-
-  const ctx = document.getElementById("graficoMensal");
-
-  if (grafico) grafico.destroy();
-
-  grafico = new Chart(ctx, {
-    type: "bar",
-    data: {
-      labels: meses,
-      datasets: [{
-        label: "Gastos por mês (R$)",
-        data: valores
-      }]
-    },
-    options: {
-      responsive: true,
-      scales: {
-        y: { beginAtZero: true }
-      }
-    }
-  });
-}
-
-/* 🚀 INICIALIZA */
-carregarMes();
-carregarGrafico();
-
+window.db = db;
+window.dbRef = ref;
+window.dbSet = set;
+window.dbOnValue = onValue;
 </script>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+
+<style>
+:root{
+  --lilas:#6a5acd;
+  --ciano:#4fc3f7;
+  --bg:#f7f5ff;
+}
+body{
+  font-family:Poppins, Arial, sans-serif;
+  background:var(--bg);
+  margin:0;
+  padding:30px;
+}
+h1{color:var(--lilas);text-align:center;}
+.container{
+  background:#fff;
+  padding:20px;
+  border-radius:14px;
+  box-shadow:0 8px 20px rgba(0,0,0,.08);
+}
+.filtros{display:flex;gap:10px;margin-bottom:15px;}
+input,select{
+  padding:8px;
+  border-radius:6px;
+  border:1px solid #ccc;
+  width:100%;
+}
+table{width:100%;border-collapse:collapse;}
+thead{background:var(--lilas);color:#fff;}
+th,td{padding:8px;text-align:center;}
+tbody tr:nth-child(even){background:#f2f2f2;}
+button{
+  background:var(--ciano);
+  border:none;
+  padding:10px 14px;
+  border-radius:8px;
+  cursor:pointer;
+  margin-top:10px;
+}
+.total{
+  margin-top:20px;
+  font-size:20px;
+  font-weight:600;
+  color:var(--lilas);
+  text-align:center;
+}
+canvas{margin-top:30px;}
+</style>
+</head>
+
+<body>
+<h1>Planilha Mensal de Insumos</h1>
+
+<div class="container">
+  <div class="filtros">
+    <select id="mes"></select>
+    <select id="ano"></select>
+  </div>
+
+  <table>
+    <thead>
+      <tr>
+        <th>Insumo</th>
+        <th>Custo</th>
+        <th>Qtd</th>
+        <th>Total</th>
+      </tr>
+    </thead>
+    <tbody id="tabela"></tbody>
+  </table>
+
+  <button onclick="adicionarLinha()">+ Adicionar Insumo</button>
+
+  <div class="total" id="totalMes">Total do Mês: R$ 0,00</div>
+
+  <canvas id="graficoMensal"></canvas>
+</div>
+
+<script>
+const meses = [
+  "Janeiro","Fevereiro","Março","Abril","Maio","Junho",
+  "Julho","Agosto","Setembro","Outubro","Novembro","Dezembro"
+];
+
+const mesSelect = document.getElementById('mes');
+const anoSelect = document.getElementById('ano');
+const tabela = document.getElementById('tabela');
+const totalMesEl = document.getElementById('totalMes');
+
+meses.forEach((m,i)=>{
+  const op=document.createElement('option');
+  op.value=i;
+  op.textContent=m;
+  mesSelect.appendChild(op);
+});
+
+for(let a=2024;a<=2035;a++){
+  const op=document.createElement('option');
+  op.value=a;
+  op.textContent=a;
+  anoSelect.appendChild(op);
+}
+
+mesSelect.value=new Date().getMonth();
+anoSelect.value=new Date().getFullYear();
+
+function adicionarLinha(){
+  const tr=document.createElement('tr');
+  tr.innerHTML=`
+    <td><input></td>
+    <td><input type="number" step="0.01"></td>
+    <td><input type="number"></td>
+    <td class="linhaTotal">0,00</td>
+  `;
+  tabela.appendChild(tr);
+  salvar();
+}
+
+function calcular(){
+  let soma=0;
+  document.querySelectorAll('#tabela tr').forEach(tr=>{
+    const custo=Number(tr.children[1].querySelector('input').value)||0;
+    const qtd=Number(tr.children[2].querySelector('input').value)||0;
+    const total=custo*qtd;
+    tr.children[3].textContent=total.toFixed(2);
+    soma+=total;
+  });
+  totalMesEl.textContent=`Total do Mês: R$ ${soma.toFixed(2)}`;
+  salvar();
+}
+
+function salvar(){
+  const path=`insumos/${anoSelect.value}/${mesSelect.value}`;
+  const dados=[];
+  document.querySelectorAll('#tabela tr').forEach(tr=>{
+    dados.push({
+      insumo: tr.children[0].querySelector('input').value,
+      custo: tr.children[1].querySelector('input').value,
+      quantidade: tr.children[2].querySelector('input').value
+    });
+  });
+  dbSet(dbRef(db,path),dados);
+}
+
+function carregar(){
+  const path=`insumos/${anoSelect.value}/${mesSelect.value}`;
+  dbOnValue(dbRef(db,path),snap=>{
+    tabela.innerHTML='';
+    if(!snap.exists()) return;
+    snap.val().forEach(item=>{
+      const tr=document.createElement('tr');
+      tr.innerHTML=`
+        <td><input value="${item.insumo||''}"></td>
+        <td><input type="number" value="${item.custo||''}"></td>
+        <td><input type="number" value="${item.quantidade||''}"></td>
+        <td class="linhaTotal">0,00</td>
+      `;
+      tabela.appendChild(tr);
+    });
+    calcular();
+    carregarGrafico();
+  });
+}
+
+let grafico;
+function carregarGrafico(){
+  const ctx=document.getElementById('graficoMensal');
+  let valores=[];
+
+  for(let i=0;i<12;i++) valores.push(0);
+
+  dbOnValue(dbRef(db,`insumos/${anoSelect.value}`),snap=>{
+    if(!snap.exists()) return;
+    Object.keys(snap.val()).forEach(m=>{
+      snap.val()[m].forEach(item=>{
+        valores[m]+=Number(item.custo||0)*Number(item.quantidade||0);
+      });
+    });
+
+    if(grafico) grafico.destroy();
+    grafico=new Chart(ctx,{
+      type:'bar',
+      data:{
+        labels:meses,
+        datasets:[{data:valores}]
+      },
+      options:{responsive:true}
+    });
+  });
+}
+
+tabela.addEventListener('input',calcular);
+mesSelect.onchange=carregar;
+anoSelect.onchange=carregar;
+carregar();
+</script>
+
 </body>
 </html>
-
