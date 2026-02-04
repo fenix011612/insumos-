@@ -7,7 +7,7 @@
 
 <script type="module">
 import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, push, set, onValue, remove } 
+import { getDatabase, ref, push, update, onValue, remove } 
 from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
 const firebaseConfig = {
@@ -26,7 +26,7 @@ const db = getDatabase(app);
 window.db = db;
 window.ref = ref;
 window.push = push;
-window.set = set;
+window.update = update;
 window.onValue = onValue;
 window.remove = remove;
 </script>
@@ -88,11 +88,13 @@ button{
 <script>
 const lista = document.getElementById("lista");
 const totalMes = document.getElementById("totalMes");
+
+// 🔒 caminho fixo para evitar bug de reload
 const caminho = "insumos/2026/0";
 
 function novo(){
   const novoRef = push(ref(db, caminho));
-  set(novoRef,{
+  update(novoRef,{
     insumo:"",
     custo:0,
     quantidade:0,
@@ -108,8 +110,10 @@ function apagar(id){
   }
 }
 
-function atualizar(id,campo,valor){
-  set(ref(db, `${caminho}/${id}/${campo}`), valor);
+function salvar(id,campo,valor){
+  update(ref(db, `${caminho}/${id}`), {
+    [campo]: valor
+  });
 }
 
 onValue(ref(db,caminho), snap=>{
@@ -124,23 +128,23 @@ onValue(ref(db,caminho), snap=>{
 
     lista.innerHTML += `
       <tr>
-        <td><input value="${d.insumo||''}" 
-          oninput="atualizar('${id}','insumo',this.value)"></td>
+        <td><input value="${d.insumo||''}"
+          oninput="salvar('${id}','insumo',this.value)"></td>
 
-        <td><input type="number" value="${d.custo||0}" 
-          oninput="atualizar('${id}','custo',Number(this.value))"></td>
+        <td><input type="number" value="${d.custo||0}"
+          oninput="salvar('${id}','custo',Number(this.value))"></td>
 
-        <td><input type="number" value="${d.quantidade||0}" 
-          oninput="atualizar('${id}','quantidade',Number(this.value))"></td>
+        <td><input type="number" value="${d.quantidade||0}"
+          oninput="salvar('${id}','quantidade',Number(this.value))"></td>
 
-        <td><input type="date" value="${d.data||''}" 
-          oninput="atualizar('${id}','data',this.value)"></td>
+        <td><input type="date" value="${d.data||''}"
+          oninput="salvar('${id}','data',this.value)"></td>
 
-        <td><input value="${d.local||''}" 
-          oninput="atualizar('${id}','local',this.value)"></td>
+        <td><input value="${d.local||''}"
+          oninput="salvar('${id}','local',this.value)"></td>
 
-        <td><input value="${d.pagamento||''}" 
-          oninput="atualizar('${id}','pagamento',this.value)"></td>
+        <td><input value="${d.pagamento||''}"
+          oninput="salvar('${id}','pagamento',this.value)"></td>
 
         <td>R$ ${total.toFixed(2)}</td>
         <td><button class="del" onclick="apagar('${id}')">🗑</button></td>
