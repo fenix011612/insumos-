@@ -5,32 +5,29 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Planilha Mensal de Insumos</title>
 
-<!-- Firebase -->
 <script type="module">
-import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
-import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
+  import { initializeApp } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-app.js";
+  import { getDatabase, ref, set, onValue, remove } from "https://www.gstatic.com/firebasejs/10.7.1/firebase-database.js";
 
-const firebaseConfig = {
-  apiKey: "AIzaSyByv8SN7FXTKG9kc2jJCeYGMa86R0ZVf9g",
-  authDomain: "insumos-41ece.firebaseapp.com",
-  databaseURL: "https://insumos-41ece-default-rtdb.firebaseio.com",
-  projectId: "insumos-41ece",
-  storageBucket: "insumos-41ece.appspot.com",
-  messagingSenderId: "25863524219",
-  appId: "1:25863524219:web:59fff88398f535f84437de"
-};
+  const firebaseConfig = {
+    apiKey: "AIzaSyByv8SN7FXTKG9kc2jJCeYGMa86R0ZVf9g",
+    authDomain: "insumos-41ece.firebaseapp.com",
+    databaseURL: "https://insumos-41ece-default-rtdb.firebaseio.com",
+    projectId: "insumos-41ece",
+    storageBucket: "insumos-41ece.firebasestorage.app",
+    messagingSenderId: "25863524219",
+    appId: "1:25863524219:web:59fff88398f535f84437de"
+  };
 
-const app = initializeApp(firebaseConfig);
-const db = getDatabase(app);
+  const app = initializeApp(firebaseConfig);
+  const db = getDatabase(app);
 
-window.db = db;
-window.dbRef = ref;
-window.dbSet = set;
-window.dbOnValue = onValue;
-window.dbRemove = remove;
+  window.db = db;
+  window.dbRef = ref;
+  window.dbSet = set;
+  window.dbOnValue = onValue;
+  window.dbRemove = remove;
 </script>
-
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 
 <style>
 :root{
@@ -77,9 +74,6 @@ button{
   color:var(--lilas);
   text-align:center;
 }
-canvas{
-  margin-top:30px;
-}
 </style>
 </head>
 
@@ -111,8 +105,6 @@ canvas{
   <button onclick="apagarHistorico()">🗑 Apagar Histórico</button>
 
   <div class="total" id="totalMes">Total do Mês: R$ 0,00</div>
-
-  <canvas id="grafico"></canvas>
 </div>
 
 <script>
@@ -121,40 +113,37 @@ const mesSelect=document.getElementById('mes');
 const anoSelect=document.getElementById('ano');
 const tabela=document.getElementById('tabela');
 const totalMesEl=document.getElementById('totalMes');
-let chart;
 
 meses.forEach((m,i)=>{
   mesSelect.innerHTML+=`<option value="${i}">${m}</option>`;
 });
 
-for(let a=2024;a<=2035;a++){
+for(let a=2026;a<=2035;a++){
   anoSelect.innerHTML+=`<option value="${a}">${a}</option>`;
 }
 
 mesSelect.value=new Date().getMonth();
 anoSelect.value=new Date().getFullYear();
 
-function adicionarLinha(){
+function adicionarLinha(dados={}){
   const tr=document.createElement('tr');
   tr.innerHTML=`
-    <td><input></td>
-    <td><input type="number" step="0.01"></td>
-    <td><input type="number"></td>
-    <td><input type="date"></td>
-    <td><input></td>
-    <td><input></td>
+    <td><input value="${dados.insumo||''}" oninput="salvarRealtime()"></td>
+    <td><input type="number" step="0.01" value="${dados.custo||''}" oninput="calcular();salvarRealtime()"></td>
+    <td><input type="number" value="${dados.quantidade||''}" oninput="calcular();salvarRealtime()"></td>
+    <td><input type="date" value="${dados.data||''}" onchange="salvarRealtime()"></td>
+    <td><input value="${dados.local||''}" oninput="salvarRealtime()"></td>
+    <td><input value="${dados.pagamento||''}" oninput="salvarRealtime()"></td>
     <td class="linhaTotal">0,00</td>`;
-  tr.querySelectorAll('input').forEach(i=>{
-    i.oninput=()=>{ salvar(); calcular(); };
-  });
   tabela.appendChild(tr);
+  calcular();
 }
 
 function calcular(){
   let soma=0;
   document.querySelectorAll('#tabela tr').forEach(tr=>{
-    const custo=Number(tr.children[1].querySelector('input').value)||0;
-    const qtd=Number(tr.children[2].querySelector('input').value)||0;
+    const custo=parseFloat(tr.children[1].querySelector('input').value)||0;
+    const qtd=parseFloat(tr.children[2].querySelector('input').value)||0;
     const total=custo*qtd;
     tr.querySelector('.linhaTotal').textContent=total.toFixed(2);
     soma+=total;
@@ -162,7 +151,7 @@ function calcular(){
   totalMesEl.textContent=`Total do Mês: R$ ${soma.toFixed(2)}`;
 }
 
-function salvar(){
+function salvarRealtime(){
   const path=`insumos/${anoSelect.value}/${mesSelect.value}`;
   const dados=[];
   document.querySelectorAll('#tabela tr').forEach(tr=>{
@@ -177,31 +166,16 @@ function salvar(){
     });
   });
   dbSet(dbRef(db,path),dados);
-  atualizarGrafico();
 }
 
-function carregar(){
+function carregarRealtime(){
   const path=`insumos/${anoSelect.value}/${mesSelect.value}`;
   dbOnValue(dbRef(db,path),snap=>{
     tabela.innerHTML='';
-    if(!snap.exists()) return;
-    snap.val().forEach(item=>{
-      const tr=document.createElement('tr');
-      tr.innerHTML=`
-        <td><input value="${item.insumo||''}"></td>
-        <td><input type="number" value="${item.custo||''}"></td>
-        <td><input type="number" value="${item.quantidade||''}"></td>
-        <td><input type="date" value="${item.data||''}"></td>
-        <td><input value="${item.local||''}"></td>
-        <td><input value="${item.pagamento||''}"></td>
-        <td class="linhaTotal">0,00</td>`;
-      tr.querySelectorAll('input').forEach(i=>{
-        i.oninput=()=>{ salvar(); calcular(); };
-      });
-      tabela.appendChild(tr);
-    });
+    if(snap.exists()){
+      snap.val().forEach(item=>adicionarLinha(item));
+    }
     calcular();
-    atualizarGrafico();
   });
 }
 
@@ -210,51 +184,13 @@ function apagarHistorico(){
     const path=`insumos/${anoSelect.value}/${mesSelect.value}`;
     dbRemove(dbRef(db,path));
     tabela.innerHTML='';
-    totalMesEl.textContent='Total do Mês: R$ 0,00';
-    atualizarGrafico();
+    calcular();
   }
 }
 
-function atualizarGrafico(){
-  const labels=[];
-  const valores=[];
-  const ano=anoSelect.value;
-
-  const promises=meses.map((m,i)=>{
-    return new Promise(res=>{
-      dbOnValue(dbRef(db,`insumos/${ano}/${i}`),snap=>{
-        let total=0;
-        if(snap.exists()){
-          snap.val().forEach(it=>{
-            total+=Number(it.custo||0)*Number(it.quantidade||0);
-          });
-        }
-        labels.push(m);
-        valores.push(total);
-        res();
-      },{onlyOnce:true});
-    });
-  });
-
-  Promise.all(promises).then(()=>{
-    if(chart) chart.destroy();
-    chart=new Chart(document.getElementById('grafico'),{
-      type:'bar',
-      data:{
-        labels,
-        datasets:[{
-          label:'Gastos por Mês (R$)',
-          data:valores,
-          backgroundColor:'#6a5acd'
-        }]
-      }
-    });
-  });
-}
-
-mesSelect.onchange=carregar;
-anoSelect.onchange=carregar;
-carregar();
+mesSelect.onchange=carregarRealtime;
+anoSelect.onchange=carregarRealtime;
+carregarRealtime();
 </script>
 </body>
 </html>
